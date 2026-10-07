@@ -335,7 +335,8 @@ function Invoke-RaynetModifyXML {
             Write-RaynetInstallerLog -LogFile $log -Level INFO -Message $summary
         }
 
-        if ($null -eq $Component.Opt_Verify -or [bool]$Component.Opt_Verify) {
+        $verify = if ($Component.ContainsKey('Verify')) { $Component.Verify } elseif ($Component.ContainsKey('Opt_Verify')) { $Component.Opt_Verify } else { $true }
+        if ($null -eq $verify -or [bool]$verify) {
             [xml]$verifiedDocument = Get-Content -LiteralPath $fileName -Raw -ErrorAction Stop
             if ($null -eq $verifiedDocument.DocumentElement) {
                 throw 'XML verification failed after writing.'

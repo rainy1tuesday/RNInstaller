@@ -25,8 +25,8 @@ function ConvertTo-RaynetComponent {
     # Normalize legacy Opt_* names without breaking existing packages.
     $aliases = @{
         Opt_TimeoutSeconds = 'TimeoutSeconds'
-        Opt_SuccessExitCodes = 'SuccessCodes'
-        Opt_RebootExitCodes = 'RebootCodes'
+        Opt_SuccessExitCodes = 'SuccessExitCodes'
+        Opt_RebootExitCodes = 'RebootExitCodes'
         Opt_Force = 'Force'
         Opt_Recurse = 'Recurse'
         Opt_Verify = 'Verify'

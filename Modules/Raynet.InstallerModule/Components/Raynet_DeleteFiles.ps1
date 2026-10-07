@@ -63,7 +63,7 @@ function Invoke-RaynetDeleteFiles {
     $Logs=Get-RaynetComponentLogs -Component $Component -LogRoot $LogRoot -Action $Action; $log=$Logs.WrapperLog
     try {
         foreach($p in 'TargetFolder','FilePattern'){if(-not $Component.ContainsKey($p) -or [string]::IsNullOrWhiteSpace($Component[$p])){throw "Component [$($Component.Name)] is missing property [$p]."}}
-        $empty=if($Component.ContainsKey('Opt_DeleteEmptyDirectories')){[bool]$Component.Opt_DeleteEmptyDirectories}else{$true}
+        $empty=if($Component.ContainsKey('DeleteEmptyDirectories')){[bool]$Component.DeleteEmptyDirectories}elseif($Component.ContainsKey('Opt_DeleteEmptyDirectories')){[bool]$Component.Opt_DeleteEmptyDirectories}else{$true}
         Write-RaynetInstallerLog $log "DeleteFiles started. Action=[$Action] Folder=[$($Component.TargetFolder)] Pattern=[$($Component.FilePattern)]"
         if($Action -eq 'Install'){Write-RaynetInstallerLog -LogFile $log -Message 'DeleteFiles is destructive and is normally install-only; executing requested operation.' -Level WARNING}
         if(-not(Test-Path -LiteralPath $Component.TargetFolder)){$summary="Target folder [$($Component.TargetFolder)] is not present; nothing needed to be deleted.";Write-RaynetInstallerLog -LogFile $log -Message $summary -Level INFO; return New-RaynetComponentResult -Success $true -ExitCode 0 -AlreadyInDesiredState:$true -Data @{Summary=$summary}}

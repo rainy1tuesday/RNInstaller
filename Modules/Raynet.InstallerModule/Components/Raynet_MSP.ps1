@@ -455,9 +455,9 @@ function Invoke-RaynetMSP {
                 -Arguments $arguments `
                 -TimeoutSeconds ([int]$Component.TimeoutSeconds)
 
-            $rebootRequired = ($exitCode -in @($Component.RebootCodes))
+            $rebootRequired = ($exitCode -in @($Component.RebootExitCodes))
 
-            if ($exitCode -notin @($Component.SuccessCodes) -and -not $rebootRequired) {
+            if ($exitCode -notin @($Component.SuccessExitCodes) -and -not $rebootRequired) {
                 throw "MSP installation failed with msiexec ExitCode=[$exitCode]."
             }
 
@@ -544,12 +544,12 @@ function Invoke-RaynetMSP {
                 -Arguments $arguments `
                 -TimeoutSeconds ([int]$Component.TimeoutSeconds)
 
-            $thisReboot = ($exitCode -in @($Component.RebootCodes))
+            $thisReboot = ($exitCode -in @($Component.RebootExitCodes))
             if ($thisReboot) {
                 $rebootRequired = $true
             }
 
-            if ($exitCode -notin @($Component.SuccessCodes) -and
+            if ($exitCode -notin @($Component.SuccessExitCodes) -and
                 $exitCode -ne 1605 -and
                 -not $thisReboot) {
                 throw "MSP uninstall failed for product [$installedProduct] with msiexec ExitCode=[$exitCode]."

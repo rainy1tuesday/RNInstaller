@@ -80,7 +80,7 @@ function Invoke-RaynetService {
             'stop' {
                 if ($svc.Status -eq 'Stopped') { $summary="Service [$name] is already stopped; no action was necessary."; return New-RaynetComponentResult -Success $true -ExitCode 0 -AlreadyInDesiredState $true -Data @{Summary=$summary} }
                 Stop-Service -Name $name -Force -ErrorAction Stop
-                $svc.WaitForStatus('Stopped',[TimeSpan]::FromSeconds($(if($Component.Opt_TimeoutSeconds -gt 0){$Component.Opt_TimeoutSeconds}else{120})))
+                $svc.WaitForStatus('Stopped',[TimeSpan]::FromSeconds($(if($Component.TimeoutSeconds -gt 0){$Component.TimeoutSeconds}else{120})))
                 $summary="Service [$name] was stopped successfully."
             }
             'start' {

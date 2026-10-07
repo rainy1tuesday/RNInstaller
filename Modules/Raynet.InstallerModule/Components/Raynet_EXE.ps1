@@ -76,8 +76,8 @@ function Invoke-RaynetEXE {
     # Defaults
     #
 
-    if (-not $Component.ContainsKey("SuccessCodes")) {
-        $Component.SuccessCodes = @(0)
+    if (-not $Component.ContainsKey("SuccessExitCodes")) {
+        $Component.SuccessExitCodes = @(0)
     }
 
     if (-not $Component.ContainsKey("RebootCodes")) {
@@ -85,6 +85,10 @@ function Invoke-RaynetEXE {
             3010 = "Restaart required"
             1641 = "Restart initatedby installer"
         }
+    }
+
+    if (-not $Component.ContainsKey("RebootExitCodes")) {
+        $Component.RebootExitCodes = @(3010,1641)
     }
 
     if (-not $Component.ContainsKey("FailureCodes")) {
@@ -329,7 +333,7 @@ function Invoke-RaynetEXE {
         # Success
         #
 
-        if ($ExitCode -in $Component.SuccessCodes) {
+        if ($ExitCode -in $Component.SuccessExitCodes -and $ExitCode -notin $Component.RebootExitCodes) {
 
             Write-RaynetInstallerLog `
                 -LogFile $WrapperLog `
@@ -346,7 +350,7 @@ function Invoke-RaynetEXE {
         # Reboot required
         #
 
-        if ($ExitCode -in $Component.RebootCodes) {
+        if ($ExitCode -in $Component.RebootExitCodes) {
 
             $RebootMessage = $Component.RebootCodes[$ExitCode]
 
