@@ -5,6 +5,7 @@ function ConvertTo-RaynetComponent {
         [hashtable]$Component
     )
 
+    $providedKeys = @($Component.Keys)
     $defaults = @{
         Enabled = $true
         Opt_Action = 'Default'
@@ -40,7 +41,7 @@ function ConvertTo-RaynetComponent {
     }
     foreach ($old in $aliases.Keys) {
         $new = $aliases[$old]
-        if ($Component.ContainsKey($old) -and -not $Component.ContainsKey($new)) { $Component[$new] = $Component[$old] }
+        if ($Component.ContainsKey($old) -and $new -notin $providedKeys) { $Component[$new] = $Component[$old] }
     }
 $required = @{
         EXE=@('ExePath'); MSI=@('MsiPath','ProductCode'); MSP=@('FileName'); CopyFile=@('SourceFile','TargetFile'); DeleteFiles=@('TargetFolder','FilePattern'); DeleteDirectory=@('Path')
