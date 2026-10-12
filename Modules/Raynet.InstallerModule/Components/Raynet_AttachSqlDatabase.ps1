@@ -155,23 +155,34 @@ function Invoke-RaynetAttachSqlDatabase {
             -LogFile $WrapperLog `
             -Message "SQL Server: $($Component.SqlServer)"
 
-        $Arguments = @(
-            "-S"
-            $Component.SqlServer
-            "-U"
-            $Component.SqlUser
-            "-P"
-            $Component.SqlPassword
-            "-i"
-            "`"$($Component.SqlFile)`""
-        )
+        $Arguments = @('-S', $Component.SqlServer)
+        $previousSqlCmdPassword = $env:SQLCMDPASSWORD
 
-        $Process = Start-Process `
-            -FilePath $SqlCmdPath `
-            -ArgumentList $Arguments `
-            -Wait `
-            -PassThru `
-            -NoNewWindow
+        if (-not [string]::IsNullOrWhiteSpace($Component.SqlUser)) {
+            $Arguments += @('-U', $Component.SqlUser)
+            if (-not [string]::IsNullOrEmpty($Component.SqlPassword)) {
+                $env:SQLCMDPASSWORD = $Component.SqlPassword
+            }
+        }
+        $Arguments += @('-i', "`"$($Component.SqlFile)`"")
+
+        try {
+            $Process = Start-Process `
+                -FilePath $SqlCmdPath `
+                -ArgumentList $Arguments `
+                -Wait `
+                -PassThru `
+                -NoNewWindow `
+                -ErrorAction Stop
+        }
+        finally {
+            if ($null -eq $previousSqlCmdPassword) {
+                Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            }
+            else {
+                $env:SQLCMDPASSWORD = $previousSqlCmdPassword
+            }
+        }
 
         Write-RaynetInstallerLog `
             -LogFile $WrapperLog `

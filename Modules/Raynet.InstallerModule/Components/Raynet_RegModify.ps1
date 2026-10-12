@@ -78,7 +78,7 @@ function Invoke-RaynetRegModify {
     $Logs = Get-RaynetComponentLogs `
         -Component $Component `
         -LogRoot $LogRoot `
-        -Action 'RegModify'
+        -Action $Action
 
     $WrapperLog = $Logs.WrapperLog
 
@@ -174,7 +174,7 @@ function Invoke-RaynetRegModify {
                     -Message "Registry value written successfully"
             }
 
-            'delete' {
+            'remove' {
 
                 if (-not (Test-Path -LiteralPath $Component.RegistryPath)) {
 

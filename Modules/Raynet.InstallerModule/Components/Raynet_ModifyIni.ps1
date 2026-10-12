@@ -2,206 +2,137 @@ function Raynet_ModifyIni {
 <#
 .SYNOPSIS
     Defines an INI modification component.
-
 .DESCRIPTION
-    Applies one or more INI-file modifications using the framework Entries structure. Multiple sections and key/value changes can be represented in one component.
-
+    Applies one or more INI-file modifications using entries containing
+    Section, Key, and Value properties.
 .PARAMETER Name
     Human-readable component name used in package and component logging.
-
 .PARAMETER IniFile
     INI file to modify.
-
 .PARAMETER Entries
-    INI modifications passed to the implementation. Supports the framework entry structure for one or more sections/values.
-
+    One or more entries containing Section, Key, and Value properties.
 .PARAMETER Opt_Action
-    Controls which package action executes this component. 'Default' follows the package Install/Uninstall action; 'Install' or 'Uninstall' overrides it for this component. Default: Default.
-
+    Controls which package action executes this component.
 .PARAMETER Opt_Critical
-    Controls failure handling. When true, a component failure stops package execution. When false, the failure is logged and the package continues. Default: $true.
-
-.PARAMETER Opt_TimeoutSeconds
-    Maximum component execution time in seconds where the implementation supports a timeout. A value of 0 means no explicit component timeout. Default: 0.
-
-.PARAMETER Opt_SuccessExitCodes
-    Exit codes considered successful by components that launch external installers/processes. Default: @(0,3010).
-
-.PARAMETER Opt_RebootExitCodes
-    Exit codes that mark the package as requiring a reboot. Default: @(3010,1641).
-
-.PARAMETER Opt_Force
-    Requests execution even when the component would otherwise consider the desired state already satisfied, where supported. Default: $false.
-
-.PARAMETER Opt_Verify
-    Enables post-action verification where supported. Default: $true.
-
+    Controls whether a failure stops package execution.
 .EXAMPLE
-    Raynet_ModifyIni -Name 'Configure MyApp' -IniFile 'C:\ProgramData\MyApp\app.ini' -Entries @{ General = @{ Language = 'de'; Enabled = '1' } }
-
-.INPUTS
-    None. The function defines a component in the current Raynet package.
-
-.OUTPUTS
-    None. The component definition is registered with the Raynet framework.
-
-.NOTES
-    Raynet Installer Framework 0.4.
-    Use Get-Help Raynet_ModifyIni -Full for complete native PowerShell help.
+    Raynet_ModifyIni -Name 'Configure MyApp' -IniFile 'C:\ProgramData\MyApp\app.ini' -Entries @(@{Section='General';Key='Language';Value='de'})
 #>
-[CmdletBinding()]param([Parameter(Mandatory=$true)][string]$Name,[Parameter(Mandatory=$true)][string]$IniFile,[Parameter(Mandatory=$true)]$Entries,[Parameter(Mandatory=$false)][ValidateSet('Default','Install','Uninstall')][string]$Opt_Action='Default',[Parameter(Mandatory=$false)][bool]$Opt_Critical=$true,[Parameter(Mandatory=$false)][int]$Opt_TimeoutSeconds=0,[Parameter(Mandatory=$false)][int[]]$Opt_SuccessExitCodes=@(0,3010),[Parameter(Mandatory=$false)][int[]]$Opt_RebootExitCodes=@(3010,1641),[Parameter(Mandatory=$false)][bool]$Opt_Force=$false,[Parameter(Mandatory=$false)][bool]$Opt_Verify=$true);Add-RaynetComponent @{Type='ModifyIni';Name=$Name;IniFile=$IniFile;Entries=$Entries;Opt_Action=$Opt_Action;Opt_Critical=$Opt_Critical;Opt_TimeoutSeconds=$Opt_TimeoutSeconds;Opt_SuccessExitCodes=$Opt_SuccessExitCodes;Opt_RebootExitCodes=$Opt_RebootExitCodes;Opt_Force=$Opt_Force;Opt_Verify=$Opt_Verify}
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$IniFile,
+        [Parameter(Mandatory)]$Entries,
+        [ValidateSet('Default','Install','Uninstall')][string]$Opt_Action = 'Default',
+        [bool]$Opt_Critical = $true,
+        [int]$Opt_TimeoutSeconds = 0,
+        [int[]]$Opt_SuccessExitCodes = @(0,3010),
+        [int[]]$Opt_RebootExitCodes = @(3010,1641),
+        [bool]$Opt_Force = $false,
+        [bool]$Opt_Verify = $true
+    )
+
+    Add-RaynetComponent -Component @{
+        Type = 'ModifyIni'
+        Name = $Name
+        IniFile = $IniFile
+        Entries = $Entries
+        Opt_Action = $Opt_Action
+        Opt_Critical = $Opt_Critical
+        Opt_TimeoutSeconds = $Opt_TimeoutSeconds
+        Opt_SuccessExitCodes = $Opt_SuccessExitCodes
+        Opt_RebootExitCodes = $Opt_RebootExitCodes
+        Opt_Force = $Opt_Force
+        Opt_Verify = $Opt_Verify
+    }
 }
 
 function Invoke-RaynetModifyIni {
+    [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $true)]
-        [hashtable]$Component,
-        [Parameter(Mandatory = $true)]
-        [string]$LogRoot,
-        [Parameter(Mandatory = $true)]
-        [ValidateSet('Install','Uninstall')]
-        [string]$Action
+        [Parameter(Mandatory)][hashtable]$Component,
+        [Parameter(Mandatory)][string]$LogRoot,
+        [Parameter(Mandatory)][ValidateSet('Install','Uninstall')][string]$Action
     )
 
-    try {
-        #
-        # Validate Component
-        #
+    $log = (Get-RaynetComponentLogs -Component $Component -LogRoot $LogRoot -Action $Action).WrapperLog
 
-        if (-not $Component.ContainsKey("IniFile")) {
-            throw "Component [$($Component.Name)] is missing property [IniFile]."
+    try {
+        foreach ($property in 'IniFile','Entries') {
+            if (-not $Component.ContainsKey($property) -or $null -eq $Component[$property]) {
+                throw "Component [$($Component.Name)] is missing property [$property]."
+            }
         }
 
-        if (-not (Test-Path -LiteralPath $Component.IniFile)) {
+        if (-not (Test-Path -LiteralPath $Component.IniFile -PathType Leaf)) {
             throw "INI file not found [$($Component.IniFile)]"
         }
 
-        if (-not $Component.ContainsKey("Entries")) {
-            throw "Component [$($Component.Name)] is missing property [Entries]."
-            #
-            # Load file into editable array
-            #
+        $lines = [System.Collections.ArrayList]::new()
+        Get-Content -LiteralPath $Component.IniFile -ErrorAction Stop | ForEach-Object {
+            [void]$lines.Add($_)
         }
-        $Lines = [System.Collections.ArrayList]::new()
 
-        Get-Content -Path $Component.IniFile | ForEach-Object {
-            [void]$Lines.Add($_)
-        }
-        
-        #
-        # Process all Entries
-        #
-
-        foreach ($Entry in $Component.Entries) {
-            
-            if ([string]::IsNullOrWhiteSpace($Entry.Section)) {
+        foreach ($entry in $Component.Entries) {
+            if ([string]::IsNullOrWhiteSpace($entry.Section)) {
                 throw "Entry in component [$($Component.Name)] is missing Section."
             }
 
-            if ([string]::IsNullOrWhiteSpace($Entry.Key)) {
+            if ([string]::IsNullOrWhiteSpace($entry.Key)) {
                 throw "Entry in component [$($Component.Name)] is missing Key."
             }
 
-            $Section = $Entry.Section
-            $Key = $Entry.Key
-            $Value = $Entry.Value
+            $sectionStart = -1
+            $sectionEnd = $lines.Count
 
-            $SectionFound = $false
-            $KeyFound = $false
-
-            $SectionStart = -1
-            $SectionEnd = $Lines.Count
-
-            #
-            # Find Section
-            #
-
-            for ($i = 0; $i -lt $Lines.Count; $i++) {
-                if ($Lines[$i].Trim() -eq "[$Section]") {
-                    $SectionFound = $true
-                    $SectionStart = $i
-
-                    #
-                    # Find next section
-                    #
-
-                    for ($j = $i + 1; $j -lt $Lines.Count; $j++) {
-                        if ($Lines[$j] -match '^\[.*\]$') {
-                            $SectionEnd = $j
+            for ($index = 0; $index -lt $lines.Count; $index++) {
+                if ($lines[$index].Trim() -eq "[$($entry.Section)]") {
+                    $sectionStart = $index
+                    for ($nextIndex = $index + 1; $nextIndex -lt $lines.Count; $nextIndex++) {
+                        if ($lines[$nextIndex] -match '^\[.*\]$') {
+                            $sectionEnd = $nextIndex
                             break
                         }
                     }
-
                     break
                 }
             }
 
-            #
-            # Section exists
-            #
-
-            if ($SectionFound) {
-                #
-                # Search Key
-                #
-
-                for ($i = $SectionStart + 1; $i -lt $SectionEnd; $i++) {
-                    $CurrentLine = $Lines[$i].Trim()
-
-                    if ($CurrentLine.StartsWith("$Key=")) {
-                        $Lines[$i] = "$Key=$Value"
-
-                        $KeyFound = $true
-
+            if ($sectionStart -ge 0) {
+                $keyFound = $false
+                for ($index = $sectionStart + 1; $index -lt $sectionEnd; $index++) {
+                    if ($lines[$index].Trim().StartsWith("$($entry.Key)=")) {
+                        $lines[$index] = "$($entry.Key)=$($entry.Value)"
+                        $keyFound = $true
                         break
                     }
                 }
 
-                #
-                # Key missing -> create it
-                #
-
-                if (-not $KeyFound) {
-                    [void]$Lines.Insert(
-                        $SectionEnd,
-                        "$Key=$Value"
-                    )
+                if (-not $keyFound) {
+                    [void]$lines.Insert($sectionEnd, "$($entry.Key)=$($entry.Value)")
                 }
             }
             else {
-                #
-                # Section missing -> create section and key
-                #
-
-                if ($Lines.Count -gt 0) {
-                    [void]$Lines.Add("")
+                if ($lines.Count -gt 0) {
+                    [void]$lines.Add('')
                 }
-
-                [void]$Lines.Add("[$Section]")
-                [void]$Lines.Add("$Key=$Value")
+                [void]$lines.Add("[$($entry.Section)]")
+                [void]$lines.Add("$($entry.Key)=$($entry.Value)")
             }
         }
 
-        #
-        # Save File
-        #
-
-        Set-Content `
-            -Path $Component.IniFile `
-            -Value $Lines `
-            -Encoding ASCII
-
-        return @{
-            Success  = $true
-            ExitCode = 0
-        }
+        Set-Content -LiteralPath $Component.IniFile -Value $lines -Encoding ASCII -ErrorAction Stop
+        $summary = "INI file [$($Component.IniFile)] was updated successfully."
+        Write-RaynetInstallerLog -LogFile $log -Message $summary -Level SUCCESS
+        return New-RaynetComponentResult -Success $true -ExitCode 0 -Data @{ Summary = $summary }
     }
     catch {
-        return @{
-            Success      = $false
-            ExitCode     = 1
-            Error        = $_.Exception.Message
-            ErrorMessage = $_.Exception.Message
-        }
+        Write-RaynetInstallerLog -LogFile $log -Message $_.Exception.Message -Level ERROR
+        return New-RaynetComponentResult `
+            -Success $false `
+            -ExitCode 1 `
+            -Error $_.Exception.Message `
+            -ErrorMessage $_.Exception.ToString() `
+            -Data @{ Summary = "INI modification failed. Reason: $($_.Exception.Message)" }
     }
 }

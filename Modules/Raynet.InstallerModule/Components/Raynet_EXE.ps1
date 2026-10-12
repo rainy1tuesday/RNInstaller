@@ -82,8 +82,8 @@ function Invoke-RaynetEXE {
 
     if (-not $Component.ContainsKey("RebootCodes")) {
         $Component.RebootCodes = @{ 
-            3010 = "Restaart required"
-            1641 = "Restart initatedby installer"
+            3010 = "Restart required"
+            1641 = "Restart initiated by installer"
         }
     }
 
@@ -186,21 +186,11 @@ function Invoke-RaynetEXE {
         # Validate executable
         #
 
-        if (-not (Test-Path -LiteralPath $ExePath)) {
-            throw "Executable not found [$ExePath]"
-        }
-
-        #
-        # Validate executable
-        #
-
-        # ([string]::IsNullOrWhiteSpace($Entry.Key))
-
         if ([string]::IsNullOrWhiteSpace($ExePath)) {
             throw "Executable path is empty."
         }
 
-        if (-not (Test-Path -LiteralPath $ExePath)) {
+        if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
             throw "Executable not found [$ExePath]"
         }
 
