@@ -1,17 +1,19 @@
-$moduleRoot = Split-Path -Parent $PSScriptRoot
-$modulePath = Join-Path $moduleRoot 'Raynet.InstallerModule.psm1'
-$moduleName = 'Raynet.InstallerModule'
-
 BeforeAll {
-    Import-Module -Name $modulePath -Force
+    $moduleRoot = Split-Path -Parent $PSScriptRoot
+    Import-Module -Name (Join-Path $moduleRoot 'Raynet.InstallerModule.psm1') -Force
 }
 
 Describe 'Raynet.InstallerModule public surface' {
     It 'imports and exports the package and component DSL' {
-        Get-Command -Name Initialize-RaynetPackage, Add-RaynetComponent, Get-RaynetComponents,
-            Invoke-RaynetPackage, Raynet_CopyFiles -Module $moduleName |
-            Select-Object -ExpandProperty Name |
-            Should -Contain 'Raynet_CopyFiles'
+        $commands = Get-Command -Name @(
+            'Initialize-RaynetPackage',
+            'Add-RaynetComponent',
+            'Get-RaynetComponents',
+            'Invoke-RaynetPackage',
+            'Raynet_CopyFiles'
+        ) -Module 'Raynet.InstallerModule'
+
+        $commands.Count | Should -Be 5
     }
 
     It 'passes the framework component convention self-test' {
@@ -48,7 +50,7 @@ Describe 'Package component registration' {
 
 Describe 'Component normalization and validation' {
     It 'adds framework defaults to a valid component' {
-        $component = InModuleScope $moduleName {
+        $component = InModuleScope 'Raynet.InstallerModule' {
             ConvertTo-RaynetComponent -Component @{
                 Type = 'EXE'
                 Name = 'Example'
@@ -63,7 +65,7 @@ Describe 'Component normalization and validation' {
     }
 
     It 'normalizes legacy option names without replacing canonical values' {
-        $component = InModuleScope $moduleName {
+        $component = InModuleScope 'Raynet.InstallerModule' {
             ConvertTo-RaynetComponent -Component @{
                 Type = 'EXE'
                 Name = 'Example'
@@ -79,7 +81,7 @@ Describe 'Component normalization and validation' {
     }
 
     It 'rejects components missing their type or required properties' {
-        InModuleScope $moduleName {
+        InModuleScope 'Raynet.InstallerModule' {
             {
                 ConvertTo-RaynetComponent -Component @{ Name = 'Missing type' }
             } | Should -Throw '*Type is required*'
@@ -91,7 +93,7 @@ Describe 'Component normalization and validation' {
     }
 
     It 'rejects a negative timeout' {
-        InModuleScope $moduleName {
+        InModuleScope 'Raynet.InstallerModule' {
             {
                 ConvertTo-RaynetComponent -Component @{
                     Type = 'EXE'
@@ -106,7 +108,7 @@ Describe 'Component normalization and validation' {
 
 Describe 'Safe component names' {
     It 'replaces path separators and trims trailing periods and spaces' {
-        $safeName = InModuleScope $moduleName {
+        $safeName = InModuleScope 'Raynet.InstallerModule' {
             ConvertTo-RaynetSafePathName -Name 'folder/name.  '
         }
 
@@ -114,7 +116,7 @@ Describe 'Safe component names' {
     }
 
     It 'protects reserved DOS device names' {
-        $safeName = InModuleScope $moduleName {
+        $safeName = InModuleScope 'Raynet.InstallerModule' {
             ConvertTo-RaynetSafePathName -Name 'CON.txt'
         }
 
@@ -124,7 +126,7 @@ Describe 'Safe component names' {
 
 Describe 'Component dispatch' {
     It 'dispatches to the implementation matching the component type' {
-        $result = InModuleScope $moduleName {
+        $result = InModuleScope 'Raynet.InstallerModule' {
             function Invoke-RaynetTest {
                 param(
                     [hashtable]$Component,
@@ -151,13 +153,40 @@ Describe 'Component dispatch' {
     }
 
     It 'reports an unknown component type' {
-        InModuleScope $moduleName {
+        InModuleScope 'Raynet.InstallerModule' {
             {
                 Invoke-RaynetComponent `
                     -Component @{ Type = 'DoesNotExist' } `
                     -LogRoot 'test-logs' `
                     -Action Install
             } | Should -Throw '*No*implementation*DoesNotExist*'
+        }
+    }
+
+    Describe 'Module configuration' {
+        It 'reads configuration values and converts boolean settings' {
+            $configPath = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetInstaller-$([guid]::NewGuid()).ini"
+
+            try {
+                @(
+                    '[Logging]'
+                    'Level=DEBUG'
+                    'ComponentLogs=false'
+                ) | Set-Content -LiteralPath $configPath
+
+                $config = InModuleScope 'Raynet.InstallerModule' -Parameters @{
+                    Path = $configPath
+                } {
+                    param($Path)
+                    Get-RaynetConfiguration -ConfigPath $Path
+                }
+
+                $config.Logging.Level | Should -Be 'DEBUG'
+                $config.Logging.ComponentLogs | Should -BeFalse
+            }
+            finally {
+                Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }
