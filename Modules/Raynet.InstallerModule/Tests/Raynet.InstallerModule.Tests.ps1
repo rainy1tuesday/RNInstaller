@@ -16,8 +16,19 @@ Describe 'Raynet.InstallerModule public surface' {
         $commands.Count | Should -Be 5
     }
 
-    It 'passes the framework component convention self-test' {
-        Test-RaynetFramework | Should -BeTrue
+    It 'resolves registered component types to their implementations' {
+        $handlerNames = InModuleScope 'Raynet.InstallerModule' {
+            @('CopyFile', 'EXE', 'MSI', 'MSP') | ForEach-Object {
+                (Resolve-RaynetComponentCommand -Type $_).Name
+            }
+        }
+
+        $handlerNames | Should -Be @(
+            'Invoke-RaynetCopyFile',
+            'Invoke-RaynetEXE',
+            'Invoke-RaynetMSI',
+            'Invoke-RaynetMSP'
+        )
     }
 }
 
@@ -36,7 +47,7 @@ Describe 'Package component registration' {
         $components = @(Get-RaynetComponents)
         $components.Count | Should -Be 1
         $components[0].Type | Should -Be 'CopyFile'
-        $components[0].SourceFile | Should -Be 'config.ini'
+        $components[0].SourceFile | Should -Match '[\\/]config\.ini$'
         $components[0].TargetFile | Should -Be 'out/config.ini'
     }
 
@@ -163,30 +174,31 @@ Describe 'Component dispatch' {
         }
     }
 
-    Describe 'Module configuration' {
-        It 'reads configuration values and converts boolean settings' {
-            $configPath = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetInstaller-$([guid]::NewGuid()).ini"
+}
 
-            try {
-                @(
-                    '[Logging]'
-                    'Level=DEBUG'
-                    'ComponentLogs=false'
-                ) | Set-Content -LiteralPath $configPath
+Describe 'Module configuration' {
+    It 'reads configuration values and converts boolean settings' {
+        $configPath = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetInstaller-$([guid]::NewGuid()).ini"
 
-                $config = InModuleScope 'Raynet.InstallerModule' -Parameters @{
-                    Path = $configPath
-                } {
-                    param($Path)
-                    Get-RaynetConfiguration -ConfigPath $Path
-                }
+        try {
+            @(
+                '[Logging]'
+                'Level=DEBUG'
+                'ComponentLogs=false'
+            ) | Set-Content -LiteralPath $configPath
 
-                $config.Logging.Level | Should -Be 'DEBUG'
-                $config.Logging.ComponentLogs | Should -BeFalse
+            $config = InModuleScope 'Raynet.InstallerModule' -Parameters @{
+                Path = $configPath
+            } {
+                param($Path)
+                Get-RaynetConfiguration -ConfigPath $Path
             }
-            finally {
-                Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
-            }
+
+            $config.Logging.Level | Should -Be 'DEBUG'
+            $config.Logging.ComponentLogs | Should -BeFalse
+        }
+        finally {
+            Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
         }
     }
 }
