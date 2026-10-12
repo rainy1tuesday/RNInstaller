@@ -30,6 +30,10 @@ Describe 'Raynet.InstallerModule public surface' {
             'Invoke-RaynetMSP'
         )
     }
+
+    It 'passes the framework self-test with aliases and helper functions' {
+        Test-RaynetFramework | Should -BeTrue
+    }
 }
 
 Describe 'Package component registration' {
@@ -208,6 +212,33 @@ Describe 'INI component execution' {
     }
 }
 
+Describe 'EXE component validation' {
+    It 'fails clearly when the selected executable does not exist' {
+        $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetExe-$([guid]::NewGuid())"
+
+        try {
+            $result = InModuleScope 'Raynet.InstallerModule' -Parameters @{
+                LogRoot = $testRoot
+            } {
+                param($LogRoot)
+                Invoke-RaynetEXE `
+                    -Component @{
+                        Name = 'Missing executable'
+                        ExePath = (Join-Path $LogRoot 'missing.exe')
+                    } `
+                    -LogRoot $LogRoot `
+                    -Action Install
+            }
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -Match 'Executable not found'
+        }
+        finally {
+            Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Describe 'Registry component execution' {
     It 'supports Remove and uses the effective action in its log filename' {
         $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetRegistry-$([guid]::NewGuid())"
@@ -304,6 +335,54 @@ Describe 'SQL database component credentials' {
             else {
                 $env:SQLCMDPASSWORD = $previousSqlCmdPassword
             }
+            Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Describe 'Service configuration credentials' {
+    It 'passes the configured account password to the service API without logging it' {
+        $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetService-$([guid]::NewGuid())"
+        $logRoot = Join-Path $testRoot 'logs'
+
+        try {
+            $execution = InModuleScope 'Raynet.InstallerModule' -Parameters @{
+                LogRoot = $logRoot
+            } {
+                param($LogRoot)
+                function Get-Service { }
+                function Get-CimInstance { }
+                function Invoke-CimMethod {
+                    param($InputObject, $MethodName, $Arguments)
+                }
+                Mock Get-Service { [pscustomobject]@{ Status = 'Stopped' } }
+                Mock Get-CimInstance { [pscustomobject]@{ Name = 'ExampleService' } }
+                Mock Write-RaynetInstallerLog {
+                    if ($Message -match 'test-value') {
+                        throw 'The service password must not be written to a log.'
+                    }
+                }
+                Mock Invoke-CimMethod {
+                    param($InputObject, $MethodName, $Arguments)
+                    if ($Arguments.StartPassword -ne 'test-value') {
+                        throw 'Configured service password was not passed to the service API.'
+                    }
+                    [pscustomobject]@{ ReturnValue = 0 }
+                }
+
+                Invoke-RaynetConfigureService `
+                    -Component @{
+                        ServiceName = 'ExampleService'
+                        Opt_Configure_AccountName = 'DOMAIN\service'
+                        Opt_Configure_Password = 'test-value'
+                    } `
+                    -LogRoot $LogRoot `
+                    -Action Install
+            }
+
+            $execution.Success | Should -BeTrue
+        }
+        finally {
             Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
     }

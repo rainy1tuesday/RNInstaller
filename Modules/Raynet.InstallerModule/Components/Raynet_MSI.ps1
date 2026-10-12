@@ -79,10 +79,10 @@ function Invoke-RaynetMSI {
         if($Action -eq 'Install'){
             if(-not $Component.ContainsKey('MsiPath')){throw "Component [$($Component.Name)] is missing property [MsiPath]."}
             $access=Test-RaynetPathAccess -Path $Component.MsiPath -Mode Read -LogFile $log -Label 'MSI source'; if(-not $access.Readable){throw "MSI is not readable [$($Component.MsiPath)]"}
-            $args="/i `"$($Component.MsiPath)`" /qn /norestart"; if($Component.Transform){$args+=" TRANSFORMS=`"$($Component.Transform)`""}; if($Component.InstallArgs){$args+=" $($Component.InstallArgs)"}
-        } else {$args="/x $($Component.ProductCode) /qn /norestart";if($Component.UninstallArgs){$args+=" $($Component.UninstallArgs)"}}
-        $args+=" /L*v `"$msilog`""; Write-RaynetInstallerLog $log "msiexec.exe $args"
-        $pr=Start-Process msiexec.exe -ArgumentList $args -Wait -PassThru -ErrorAction Stop
+            $msiArguments="/i `"$($Component.MsiPath)`" /qn /norestart"; if($Component.Transform){$msiArguments+=" TRANSFORMS=`"$($Component.Transform)`""}; if($Component.InstallArgs){$msiArguments+=" $($Component.InstallArgs)"}
+        } else {$msiArguments="/x $($Component.ProductCode) /qn /norestart";if($Component.UninstallArgs){$msiArguments+=" $($Component.UninstallArgs)"}}
+        $msiArguments+=" /L*v `"$msilog`""; Write-RaynetInstallerLog $log "msiexec.exe $msiArguments"
+        $pr=Start-Process msiexec.exe -ArgumentList $msiArguments -Wait -PassThru -ErrorAction Stop
         Write-RaynetInstallerLog $log "msiexec ExitCode=[$($pr.ExitCode)]"
         $after=Raynet_TestMSIInstalled $Component.ProductCode
         $reboot=$pr.ExitCode -in 3010,1641
@@ -90,7 +90,7 @@ function Invoke-RaynetMSI {
         if(-not $success){throw "MSI action failed or post-action detection was incorrect. ExitCode=[$($pr.ExitCode)] InstalledAfter=[$after]"}
         Write-RaynetInstallerLog -LogFile $log -Message "MSI action completed. InstalledAfter=[$after] RebootRequired=[$reboot]" -Level SUCCESS
         return New-RaynetComponentResult $true $(if($reboot){3010}else{0}) -RebootRequired:$reboot
-    } catch {Write-RaynetInstallerLog $log $_.Exception.Message ERROR;return New-RaynetComponentResult -Success $false -ExitCode 1 -Error $_.Exception.Message -ErrorMessage $_.Exception.ToString()}
+    } catch {Write-RaynetInstallerLog $log $_.Exception.Message ERROR;return New-RaynetComponentResult -Success $false -ExitCode 1 -FailureReason $_.Exception.Message -ErrorMessage $_.Exception.ToString()}
 }
 
 function Raynet_TestMSIInstalled {

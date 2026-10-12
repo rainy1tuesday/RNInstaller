@@ -118,5 +118,5 @@ function Invoke-RaynetCopyFile {
         $s=Get-Item $Component.SourceFile; $t=Get-Item $Component.TargetFile
         Write-RaynetInstallerLog -LogFile $log -Message "Verified target. Size=$($t.Length) bytes; LastWriteTime=$($t.LastWriteTime); SourceSize=$($s.Length) bytes." -Level SUCCESS
         return New-RaynetComponentResult -Success $true -ExitCode 0 -AlreadyInDesiredState:(-not $doCopy)
-    } catch { Write-RaynetInstallerLog $log $_.Exception.Message ERROR; return New-RaynetComponentResult -Success $false -ExitCode 1 -Error $_.Exception.Message -ErrorMessage $_.Exception.ToString() }
+    } catch { Write-RaynetInstallerLog $log $_.Exception.Message ERROR; return New-RaynetComponentResult -Success $false -ExitCode 1 -FailureReason $_.Exception.Message -ErrorMessage $_.Exception.ToString() }
 }

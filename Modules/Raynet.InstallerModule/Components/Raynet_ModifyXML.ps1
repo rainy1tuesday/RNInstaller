@@ -358,7 +358,7 @@ function Invoke-RaynetModifyXML {
         return New-RaynetComponentResult `
             -Success $false `
             -ExitCode 1 `
-            -Error $_.Exception.Message `
+            -FailureReason $_.Exception.Message `
             -ErrorMessage $_.Exception.ToString() `
             -Data @{ Summary = $summary }
     }

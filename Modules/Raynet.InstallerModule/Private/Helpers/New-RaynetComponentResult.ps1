@@ -2,7 +2,7 @@ function New-RaynetComponentResult {
     param(
         [Parameter(Mandatory)][bool]$Success,
         [Parameter(Mandatory)][int]$ExitCode,
-        [string]$Error,
+        [string]$FailureReason,
         [string]$ErrorMessage,
         [bool]$Skipped = $false,
         [bool]$AlreadyInDesiredState = $false,
@@ -13,7 +13,7 @@ function New-RaynetComponentResult {
     $result = [ordered]@{
         Success = $Success
         ExitCode = $ExitCode
-        Error = $Error
+        Error = $FailureReason
         ErrorMessage = $ErrorMessage
         Skipped = $Skipped
         AlreadyInDesiredState = $AlreadyInDesiredState

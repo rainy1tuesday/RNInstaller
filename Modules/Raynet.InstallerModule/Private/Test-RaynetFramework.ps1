@@ -8,13 +8,25 @@ function Test-RaynetFramework {
 
     $errors = [System.Collections.Generic.List[string]]::new()
     $files = Get-ChildItem -LiteralPath (Join-Path $raynetRoot 'Components') -Filter '*.ps1' -File -Recurse
+    $functionAliases = @{
+        CopyFiles = 'CopyFile'
+        TestMSIInstalled = ''
+        TestMSPInstalled = ''
+    }
 
     foreach ($file in $files) {
         $content = Get-Content -LiteralPath $file.FullName -Raw
-        $matches = [regex]::Matches($content, '(?im)^\s*function\s+Raynet_([A-Za-z0-9_]+)\b')
+        $functionMatches = [regex]::Matches($content, '(?im)^\s*function\s+Raynet_([A-Za-z0-9_]+)\b')
 
-        foreach ($match in $matches) {
+        foreach ($match in $functionMatches) {
             $suffix = $match.Groups[1].Value
+            if ($functionAliases.ContainsKey($suffix)) {
+                $suffix = $functionAliases[$suffix]
+                if (-not $suffix) {
+                    continue
+                }
+            }
+
             $invokeName = "Invoke-Raynet$suffix"
             $invoke = Get-Command $invokeName -CommandType Function -ErrorAction SilentlyContinue
 

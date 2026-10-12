@@ -213,7 +213,7 @@ function Get-RaynetMSPInstalledProducts {
             $products = Get-RaynetInstallerStringListValues -StringList $productsCollection
         }
 
-        $matches = [System.Collections.Generic.List[string]]::new()
+        $matchingProducts = [System.Collections.Generic.List[string]]::new()
 
         foreach ($product in $products) {
             $patchesCollection = $null
@@ -225,7 +225,7 @@ function Get-RaynetMSPInstalledProducts {
 
                 foreach ($patch in $patches) {
                     if ((ConvertTo-RaynetInstallerGuid -Guid $patch) -eq $patchCodeNormalized) {
-                        $matches.Add($normalizedProduct)
+                        $matchingProducts.Add($normalizedProduct)
                         break
                     }
                 }
@@ -241,7 +241,7 @@ function Get-RaynetMSPInstalledProducts {
             }
         }
 
-        return @($matches | Select-Object -Unique)
+        return @($matchingProducts | Select-Object -Unique)
     }
     finally {
         if ($null -ne $productsCollection -and
@@ -595,7 +595,7 @@ function Invoke-RaynetMSP {
         return New-RaynetComponentResult `
             -Success $false `
             -ExitCode 1 `
-            -Error $message `
+            -FailureReason $message `
             -ErrorMessage $_.Exception.ToString() `
             -Data @{ Summary = $message }
     }

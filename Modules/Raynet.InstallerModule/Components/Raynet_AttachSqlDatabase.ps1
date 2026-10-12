@@ -104,12 +104,12 @@ function Invoke-RaynetAttachSqlDatabase {
             -Path $Component.SqlFile `
             -Raw
 
-        $Matches = [regex]::Matches(
+        $sqlFileMatches = [regex]::Matches(
             $SqlContent,
             "FILENAME\s*=\s*N'([^']+)'"
         )
 
-        foreach ($Match in $Matches) {
+        foreach ($Match in $sqlFileMatches) {
 
             $DatabaseFile = $Match.Groups[1].Value
 

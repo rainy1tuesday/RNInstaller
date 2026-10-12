@@ -235,7 +235,7 @@ function Invoke-RaynetDeleteDirectory {
         return New-RaynetComponentResult `
             -Success $false `
             -ExitCode 1 `
-            -Error $message `
+            -FailureReason $message `
             -ErrorMessage $_.Exception.ToString() `
             -Data @{ Summary = $message }
     }

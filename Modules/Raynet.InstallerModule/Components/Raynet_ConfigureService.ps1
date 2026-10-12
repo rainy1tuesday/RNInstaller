@@ -77,7 +77,9 @@ function Invoke-RaynetConfigureService {
             Write-RaynetInstallerLog -LogFile $log -Message $summary -Level INFO
             return New-RaynetComponentResult -Success $true -ExitCode 0 -AlreadyInDesiredState $true -Data @{Summary=$summary}
         }
-        $startType=$Component.Opt_Configure_StartType; $account=$Component.Opt_Configure_AccountName; $password=$Component.Opt_Configure_Password
+        $startType = $Component.Opt_Configure_StartType
+        $account = $Component.Opt_Configure_AccountName
+        $password = $Component.Opt_Configure_Password
         if (-not $startType -and -not $account) { throw 'ConfigureService requires Opt_Configure_StartType and/or Opt_Configure_AccountName.' }
         if ($startType) {
             Write-RaynetInstallerLog -LogFile $log -Message "Setting startup type for service [$name] to [$startType]." -Level INFO
@@ -101,6 +103,6 @@ function Invoke-RaynetConfigureService {
     } catch {
         $summary="Service [$($Component.ServiceName)] could not be configured. Reason: $($_.Exception.Message)"
         Write-RaynetInstallerLog -LogFile $log -Message $summary -Level ERROR
-        return New-RaynetComponentResult -Success $false -ExitCode 1 -Error $_.Exception.Message -ErrorMessage $_.Exception.ToString() -Data @{Summary=$summary}
+        return New-RaynetComponentResult -Success $false -ExitCode 1 -FailureReason $_.Exception.Message -ErrorMessage $_.Exception.ToString() -Data @{Summary=$summary}
     }
 }

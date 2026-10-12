@@ -80,5 +80,5 @@ function Invoke-RaynetDeleteFiles {
         if($empty){$dirs=@(Get-ChildItem -LiteralPath $Component.TargetFolder -Directory -Recurse -Force -ErrorAction Stop|Sort-Object FullName -Descending);foreach($d in $dirs){if(-not(Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction Stop)){Remove-Item -LiteralPath $d.FullName -Force -Recurse -ErrorAction Stop;Write-RaynetInstallerLog $log "Deleted empty directory [$($d.FullName)]"}}}
         Write-RaynetInstallerLog -LogFile $log -Message 'DeleteFiles completed successfully.' -Level SUCCESS
         $summary=if($files.Count -eq 0){"No matching files were present; no deletion was necessary."}else{"Deleted [$($files.Count)] matching file(s) successfully."}; return New-RaynetComponentResult -Success $true -ExitCode 0 -AlreadyInDesiredState:($files.Count -eq 0) -Data @{Summary=$summary}
-    } catch {Write-RaynetInstallerLog $log $_.Exception.Message ERROR;return New-RaynetComponentResult -Success $false -ExitCode 1 -Error $_.Exception.Message -ErrorMessage $_.Exception.ToString()}
+    } catch {Write-RaynetInstallerLog $log $_.Exception.Message ERROR;return New-RaynetComponentResult -Success $false -ExitCode 1 -FailureReason $_.Exception.Message -ErrorMessage $_.Exception.ToString()}
 }

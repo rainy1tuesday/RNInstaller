@@ -149,7 +149,7 @@ function Invoke-RaynetModifyIni {
         return New-RaynetComponentResult `
             -Success $false `
             -ExitCode 1 `
-            -Error $_.Exception.Message `
+            -FailureReason $_.Exception.Message `
             -ErrorMessage $_.Exception.ToString() `
             -Data @{ Summary = "INI modification failed. Reason: $($_.Exception.Message)" }
     }

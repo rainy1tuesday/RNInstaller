@@ -95,6 +95,6 @@ function Invoke-RaynetService {
     } catch {
         $summary="Service action failed for [$($Component.ServiceName)]. Reason: $($_.Exception.Message)"
         Write-RaynetInstallerLog -LogFile $log -Message $summary -Level ERROR
-        return New-RaynetComponentResult -Success $false -ExitCode 1 -Error $_.Exception.Message -ErrorMessage $_.Exception.ToString() -Data @{Summary=$summary}
+        return New-RaynetComponentResult -Success $false -ExitCode 1 -FailureReason $_.Exception.Message -ErrorMessage $_.Exception.ToString() -Data @{Summary=$summary}
     }
 }
