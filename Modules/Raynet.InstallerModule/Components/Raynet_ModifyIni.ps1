@@ -12,11 +12,29 @@ function Raynet_ModifyIni {
 .PARAMETER Entries
     One or more entries containing Section, Key, and Value properties.
 .PARAMETER Opt_Action
-    Controls which package action executes this component.
+    Controls which package action executes this component. Default follows the
+    package Install or Uninstall action.
 .PARAMETER Opt_Critical
     Controls whether a failure stops package execution.
+.PARAMETER Opt_TimeoutSeconds
+    Maximum execution time where supported. Zero means no explicit timeout.
+.PARAMETER Opt_SuccessExitCodes
+    Exit codes considered successful by components that launch external processes.
+.PARAMETER Opt_RebootExitCodes
+    Exit codes that mark the package as requiring a reboot.
+.PARAMETER Opt_Force
+    Requests execution even when the desired state is already satisfied, where supported.
+.PARAMETER Opt_Verify
+    Enables post-action verification where supported.
 .EXAMPLE
     Raynet_ModifyIni -Name 'Configure MyApp' -IniFile 'C:\ProgramData\MyApp\app.ini' -Entries @(@{Section='General';Key='Language';Value='de'})
+.INPUTS
+    None. The function defines a component in the current Raynet package.
+.OUTPUTS
+    None. The component definition is registered with the Raynet framework.
+.NOTES
+    Raynet Installer Framework 0.4.
+    Use Get-Help Raynet_ModifyIni -Full for complete native PowerShell help.
 #>
     [CmdletBinding()]
     param(

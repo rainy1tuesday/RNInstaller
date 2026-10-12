@@ -176,6 +176,139 @@ Describe 'Component dispatch' {
 
 }
 
+Describe 'INI component execution' {
+    It 'updates the INI and returns the standard result while logging the action' {
+        $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetIni-$([guid]::NewGuid())"
+        $iniPath = Join-Path $testRoot 'app.ini'
+        $logRoot = Join-Path $testRoot 'logs'
+        $null = New-Item -Path $testRoot -ItemType Directory -Force
+
+        try {
+            Set-Content -LiteralPath $iniPath -Value @('[General]', 'Language=en')
+            $result = InModuleScope 'Raynet.InstallerModule' -Parameters @{
+                Component = @{
+                    Name = 'Configure language'
+                    IniFile = $iniPath
+                    Entries = @(@{ Section = 'General'; Key = 'Language'; Value = 'fr' })
+                }
+                LogRoot = $logRoot
+            } {
+                param($Component, $LogRoot)
+                Invoke-RaynetModifyIni -Component $Component -LogRoot $LogRoot -Action Install
+            }
+
+            $result.Success | Should -BeTrue
+            $result.Summary | Should -Match 'updated successfully'
+            (Get-Content -LiteralPath $iniPath -Raw) | Should -Match 'Language=fr'
+            Test-Path -LiteralPath (Join-Path $logRoot 'Configure language_Install.log') | Should -BeTrue
+        }
+        finally {
+            Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Describe 'Registry component execution' {
+    It 'supports Remove and uses the effective action in its log filename' {
+        $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetRegistry-$([guid]::NewGuid())"
+
+        try {
+            $result = InModuleScope 'Raynet.InstallerModule' -Parameters @{
+                LogRoot = $testRoot
+            } {
+                param($LogRoot)
+                Mock Test-Path { $false } -ParameterFilter {
+                    $LiteralPath -like 'HKCU:*'
+                }
+
+                Invoke-RaynetRegModify `
+                    -Component @{
+                        Name = 'Remove missing value'
+                        RegistryPath = 'HKCU:\Software\RaynetTest'
+                        ValueName = 'Missing'
+                        RegistryAction = 'Remove'
+                    } `
+                    -LogRoot $LogRoot `
+                    -Action Uninstall
+            }
+
+            $result.Success | Should -BeTrue
+            Test-Path -LiteralPath (Join-Path $testRoot 'Remove missing value_Uninstall.log') | Should -BeTrue
+            Test-Path -LiteralPath (Join-Path $testRoot 'Remove missing value_RegModify.log') | Should -BeFalse
+        }
+        finally {
+            Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Describe 'SQL database component credentials' {
+    It 'keeps the SQL password out of sqlcmd arguments and restores the environment' {
+        $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetSql-$([guid]::NewGuid())"
+        $sqlPath = Join-Path $testRoot 'attach.sql'
+        $logRoot = Join-Path $testRoot 'logs'
+        $previousProgramFiles = $env:ProgramFiles
+        $previousSqlCmdPassword = $env:SQLCMDPASSWORD
+        $null = New-Item -Path $logRoot -ItemType Directory -Force
+        Set-Content -LiteralPath $sqlPath -Value 'PRINT 1'
+        $env:ProgramFiles = $testRoot
+
+        try {
+            $execution = InModuleScope 'Raynet.InstallerModule' -Parameters @{
+                SqlPath = $sqlPath
+                LogRoot = $logRoot
+            } {
+                param($SqlPath, $LogRoot)
+                Mock Test-Path { $true }
+                Mock Start-Process {
+                    $script:capturedSqlCmdArguments = $ArgumentList
+                    $script:capturedSqlCmdPassword = $env:SQLCMDPASSWORD
+                    [pscustomobject]@{ ExitCode = 0 }
+                }
+
+                $result = Invoke-RaynetAttachSqlDatabase `
+                    -Component @{
+                        Name = 'Attach database'
+                        SqlFile = $SqlPath
+                        SqlServer = 'localhost'
+                        SqlUser = 'installer'
+                        SqlPassword = 'test-value'
+                    } `
+                    -LogRoot $LogRoot `
+                    -Action Install
+
+                [pscustomobject]@{
+                    Result = $result
+                    Arguments = $script:capturedSqlCmdArguments
+                    PasswordDuringExecution = $script:capturedSqlCmdPassword
+                    PasswordAfterExecution = $env:SQLCMDPASSWORD
+                }
+            }
+
+            $execution.Result.Success | Should -BeTrue
+            (@($execution.Arguments) -join ' ') | Should -Not -Match 'test-value'
+            $execution.PasswordDuringExecution | Should -Be 'test-value'
+            $execution.PasswordAfterExecution | Should -BeNullOrEmpty
+        }
+        finally {
+            if ($null -eq $previousProgramFiles) {
+                Remove-Item Env:ProgramFiles -ErrorAction SilentlyContinue
+            }
+            else {
+                $env:ProgramFiles = $previousProgramFiles
+            }
+
+            if ($null -eq $previousSqlCmdPassword) {
+                Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            }
+            else {
+                $env:SQLCMDPASSWORD = $previousSqlCmdPassword
+            }
+            Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Describe 'Module configuration' {
     It 'reads configuration values and converts boolean settings' {
         $configPath = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetInstaller-$([guid]::NewGuid()).ini"
