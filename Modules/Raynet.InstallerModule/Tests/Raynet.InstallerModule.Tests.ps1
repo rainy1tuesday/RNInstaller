@@ -280,6 +280,11 @@ Describe 'SQL database component credentials' {
         $logRoot = Join-Path $testRoot 'logs'
         $previousProgramFiles = $env:ProgramFiles
         $previousSqlCmdPassword = $env:SQLCMDPASSWORD
+        $secureTestPassword = [securestring]::new()
+        foreach ($character in 'test-value'.ToCharArray()) {
+            $secureTestPassword.AppendChar($character)
+        }
+        $secureTestPassword.MakeReadOnly()
         $null = New-Item -Path $logRoot -ItemType Directory -Force
         Set-Content -LiteralPath $sqlPath -Value 'PRINT 1'
         $env:ProgramFiles = $testRoot
@@ -288,8 +293,9 @@ Describe 'SQL database component credentials' {
             $execution = InModuleScope 'Raynet.InstallerModule' -Parameters @{
                 SqlPath = $sqlPath
                 LogRoot = $logRoot
+                Password = $secureTestPassword
             } {
-                param($SqlPath, $LogRoot)
+                param($SqlPath, $LogRoot, $Password)
                 Mock Test-Path { $true }
                 Mock Start-Process {
                     $script:capturedSqlCmdArguments = $ArgumentList
@@ -303,7 +309,7 @@ Describe 'SQL database component credentials' {
                         SqlFile = $SqlPath
                         SqlServer = 'localhost'
                         SqlUser = 'installer'
-                        SqlPassword = 'test-value'
+                        SqlPassword = $Password
                     } `
                     -LogRoot $LogRoot `
                     -Action Install
@@ -344,12 +350,18 @@ Describe 'Service configuration credentials' {
     It 'passes the configured account password to the service API without logging it' {
         $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "RaynetService-$([guid]::NewGuid())"
         $logRoot = Join-Path $testRoot 'logs'
+        $secureTestPassword = [securestring]::new()
+        foreach ($character in 'test-value'.ToCharArray()) {
+            $secureTestPassword.AppendChar($character)
+        }
+        $secureTestPassword.MakeReadOnly()
 
         try {
             $execution = InModuleScope 'Raynet.InstallerModule' -Parameters @{
                 LogRoot = $logRoot
+                Password = $secureTestPassword
             } {
-                param($LogRoot)
+                param($LogRoot, $Password)
                 function Get-Service { }
                 function Get-CimInstance { }
                 function Invoke-CimMethod {
@@ -374,7 +386,7 @@ Describe 'Service configuration credentials' {
                     -Component @{
                         ServiceName = 'ExampleService'
                         Opt_Configure_AccountName = 'DOMAIN\service'
-                        Opt_Configure_Password = 'test-value'
+                        Opt_Configure_Password = $Password
                     } `
                     -LogRoot $LogRoot `
                     -Action Install

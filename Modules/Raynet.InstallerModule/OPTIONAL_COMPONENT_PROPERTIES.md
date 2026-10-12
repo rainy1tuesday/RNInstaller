@@ -17,3 +17,9 @@ All package component definitions use a central normalization layer. Omitted com
 Legacy `Opt_*` names are accepted and normalized to their shorter names, so existing packages remain compatible.
 
 Component-specific options remain optional unless required by the selected operation.
+
+`Raynet_AttachSqlDatabase -SqlPassword` and
+`Raynet_ConfigureService -Opt_Configure_Password` require a `SecureString`.
+Retrieve the password from an approved secret store and pass it without converting
+it to plaintext. The SQL handler passes it to `sqlcmd` through the
+`SQLCMDPASSWORD` environment variable rather than a command-line argument.

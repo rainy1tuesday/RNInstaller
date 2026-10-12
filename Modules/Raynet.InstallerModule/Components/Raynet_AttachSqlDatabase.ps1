@@ -19,7 +19,8 @@ function Raynet_AttachSqlDatabase {
     Optional SQL authentication user. If omitted, the implementation uses its default authentication behavior.
 
 .PARAMETER SqlPassword
-    Optional password associated with SqlUser. Treat as sensitive package data.
+    Optional SecureString password associated with SqlUser. Supply credentials
+    as SecureString values so plaintext is not stored in the component definition.
 
 .PARAMETER Opt_Action
     Controls which package action executes this component. 'Default' follows the package Install/Uninstall action; 'Install' or 'Uninstall' overrides it for this component. Default: Default.
@@ -55,7 +56,7 @@ function Raynet_AttachSqlDatabase {
     Raynet Installer Framework 0.4.
     Use Get-Help Raynet_AttachSqlDatabase -Full for complete native PowerShell help.
 #>
-[CmdletBinding()]param([Parameter(Mandatory=$true)][string]$Name,[Parameter(Mandatory=$true)][string]$SqlFile,[Parameter(Mandatory=$true)][string]$SqlServer,[Parameter(Mandatory=$false)][string]$SqlUser,[Parameter(Mandatory=$false)][string]$SqlPassword,[Parameter(Mandatory=$false)][ValidateSet('Default','Install','Uninstall')][string]$Opt_Action='Default',[Parameter(Mandatory=$false)][bool]$Opt_Critical=$true,[Parameter(Mandatory=$false)][int]$Opt_TimeoutSeconds=0,[Parameter(Mandatory=$false)][int[]]$Opt_SuccessExitCodes=@(0,3010),[Parameter(Mandatory=$false)][int[]]$Opt_RebootExitCodes=@(3010,1641),[Parameter(Mandatory=$false)][bool]$Opt_Force=$false,[Parameter(Mandatory=$false)][bool]$Opt_Verify=$true);Add-RaynetComponent @{Type='AttachSqlDatabase';Name=$Name;SqlFile=$SqlFile;SqlServer=$SqlServer;SqlUser=$SqlUser;SqlPassword=$SqlPassword;Opt_Action=$Opt_Action;Opt_Critical=$Opt_Critical;Opt_TimeoutSeconds=$Opt_TimeoutSeconds;Opt_SuccessExitCodes=$Opt_SuccessExitCodes;Opt_RebootExitCodes=$Opt_RebootExitCodes;Opt_Force=$Opt_Force;Opt_Verify=$Opt_Verify}
+[CmdletBinding()]param([Parameter(Mandatory=$true)][string]$Name,[Parameter(Mandatory=$true)][string]$SqlFile,[Parameter(Mandatory=$true)][string]$SqlServer,[Parameter(Mandatory=$false)][string]$SqlUser,[Parameter(Mandatory=$false)][securestring]$SqlPassword,[Parameter(Mandatory=$false)][ValidateSet('Default','Install','Uninstall')][string]$Opt_Action='Default',[Parameter(Mandatory=$false)][bool]$Opt_Critical=$true,[Parameter(Mandatory=$false)][int]$Opt_TimeoutSeconds=0,[Parameter(Mandatory=$false)][int[]]$Opt_SuccessExitCodes=@(0,3010),[Parameter(Mandatory=$false)][int[]]$Opt_RebootExitCodes=@(3010,1641),[Parameter(Mandatory=$false)][bool]$Opt_Force=$false,[Parameter(Mandatory=$false)][bool]$Opt_Verify=$true);Add-RaynetComponent @{Type='AttachSqlDatabase';Name=$Name;SqlFile=$SqlFile;SqlServer=$SqlServer;SqlUser=$SqlUser;SqlPassword=$SqlPassword;Opt_Action=$Opt_Action;Opt_Critical=$Opt_Critical;Opt_TimeoutSeconds=$Opt_TimeoutSeconds;Opt_SuccessExitCodes=$Opt_SuccessExitCodes;Opt_RebootExitCodes=$Opt_RebootExitCodes;Opt_Force=$Opt_Force;Opt_Verify=$Opt_Verify}
 }
 
 function Invoke-RaynetAttachSqlDatabase {
@@ -160,13 +161,20 @@ function Invoke-RaynetAttachSqlDatabase {
 
         if (-not [string]::IsNullOrWhiteSpace($Component.SqlUser)) {
             $Arguments += @('-U', $Component.SqlUser)
-            if (-not [string]::IsNullOrEmpty($Component.SqlPassword)) {
-                $env:SQLCMDPASSWORD = $Component.SqlPassword
-            }
         }
         $Arguments += @('-i', "`"$($Component.SqlFile)`"")
 
+        if ($null -ne $Component.SqlPassword -and $Component.SqlPassword -isnot [securestring]) {
+            throw 'SqlPassword must be supplied as a SecureString.'
+        }
+
+        $passwordPointer = [IntPtr]::Zero
         try {
+            if ($Component.SqlPassword -is [securestring]) {
+                $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Component.SqlPassword)
+                $env:SQLCMDPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+            }
+
             $Process = Start-Process `
                 -FilePath $SqlCmdPath `
                 -ArgumentList $Arguments `
@@ -176,6 +184,10 @@ function Invoke-RaynetAttachSqlDatabase {
                 -ErrorAction Stop
         }
         finally {
+            if ($passwordPointer -ne [IntPtr]::Zero) {
+                [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+            }
+            $env:SQLCMDPASSWORD = $null
             if ($null -eq $previousSqlCmdPassword) {
                 Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue
             }

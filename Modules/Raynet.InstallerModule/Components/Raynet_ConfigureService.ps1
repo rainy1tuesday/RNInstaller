@@ -19,7 +19,7 @@ function Raynet_ConfigureService {
     Optional service logon account.
 
 .PARAMETER Opt_Configure_Password
-    Optional password for the configured service account.
+    Optional SecureString password for the configured service account.
 
 .PARAMETER Opt_Action
     Controls which package action executes this component. 'Default' follows the package Install/Uninstall action; 'Install' or 'Uninstall' overrides it for this component. Default: Default.
@@ -57,7 +57,7 @@ function Raynet_ConfigureService {
 #>
 [CmdletBinding()]param(
 [Parameter(Mandatory=$true)][string]$Name,[Parameter(Mandatory=$true)][string]$ServiceName,[Parameter(Mandatory=$false)][ValidateSet('Automatic','AutomaticDelayed','Manual','Disabled')][string]$Opt_Configure_StartType,
-[Parameter(Mandatory=$false)][string]$Opt_Configure_AccountName,[Parameter(Mandatory=$false)][string]$Opt_Configure_Password,[Parameter(Mandatory=$false)][ValidateSet('Default','Install','Uninstall')][string]$Opt_Action='Default',[Parameter(Mandatory=$false)][bool]$Opt_Critical=$true,[Parameter(Mandatory=$false)][int]$Opt_TimeoutSeconds=0,[Parameter(Mandatory=$false)][int[]]$Opt_SuccessExitCodes=@(0,3010),[Parameter(Mandatory=$false)][int[]]$Opt_RebootExitCodes=@(3010,1641),[Parameter(Mandatory=$false)][bool]$Opt_Force=$false,[Parameter(Mandatory=$false)][bool]$Opt_Verify=$true)
+[Parameter(Mandatory=$false)][string]$Opt_Configure_AccountName,[Parameter(Mandatory=$false)][securestring]$Opt_Configure_Password,[Parameter(Mandatory=$false)][ValidateSet('Default','Install','Uninstall')][string]$Opt_Action='Default',[Parameter(Mandatory=$false)][bool]$Opt_Critical=$true,[Parameter(Mandatory=$false)][int]$Opt_TimeoutSeconds=0,[Parameter(Mandatory=$false)][int[]]$Opt_SuccessExitCodes=@(0,3010),[Parameter(Mandatory=$false)][int[]]$Opt_RebootExitCodes=@(3010,1641),[Parameter(Mandatory=$false)][bool]$Opt_Force=$false,[Parameter(Mandatory=$false)][bool]$Opt_Verify=$true)
 $c=@{Type='ConfigureService';Name=$Name;ServiceName=$ServiceName;Opt_Action=$Opt_Action;Opt_Critical=$Opt_Critical;Opt_TimeoutSeconds=$Opt_TimeoutSeconds;Opt_SuccessExitCodes=$Opt_SuccessExitCodes;Opt_RebootExitCodes=$Opt_RebootExitCodes;Opt_Force=$Opt_Force;Opt_Verify=$Opt_Verify}; if($PSBoundParameters.ContainsKey('Opt_Configure_StartType')){$c.Opt_Configure_StartType=$Opt_Configure_StartType};if($PSBoundParameters.ContainsKey('Opt_Configure_AccountName')){$c.Opt_Configure_AccountName=$Opt_Configure_AccountName};if($PSBoundParameters.ContainsKey('Opt_Configure_Password')){$c.Opt_Configure_Password=$Opt_Configure_Password};Add-RaynetComponent $c
 }
 
@@ -92,9 +92,27 @@ function Invoke-RaynetConfigureService {
             }
         }
         if ($account) {
+            if ($null -ne $password -and $password -isnot [securestring]) {
+                throw 'Opt_Configure_Password must be supplied as a SecureString.'
+            }
+
             Write-RaynetInstallerLog -LogFile $log -Message "Changing service account for [$name] to [$account]." -Level INFO
             $obj=Get-CimInstance Win32_Service -Filter "Name='$name'" -ErrorAction Stop
-            $res=Invoke-CimMethod -InputObject $obj -MethodName Change -Arguments @{StartName=$account;StartPassword=$password}
+            $passwordPointer = [IntPtr]::Zero
+            try {
+                if ($password -is [securestring]) {
+                    $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($password)
+                    $password = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+                }
+                $res=Invoke-CimMethod -InputObject $obj -MethodName Change -Arguments @{StartName=$account;StartPassword=$password}
+            }
+            finally {
+                if ($passwordPointer -ne [IntPtr]::Zero) {
+                    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+                }
+                $password = $null
+            }
+
             if ($res.ReturnValue -ne 0) { throw "Changing service account failed. ReturnValue [$($res.ReturnValue)]." }
         }
         $summary="Service [$name] configuration completed successfully."
