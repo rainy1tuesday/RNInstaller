@@ -36,6 +36,53 @@ Describe 'Raynet.InstallerModule public surface' {
     }
 }
 
+Describe 'RayPro SQL prerequisite package conversion' {
+    It 'preserves the source MSI definitions in the framework package' {
+        $moduleRoot = Split-Path -Parent $PSScriptRoot
+        $repositoryRoot = Split-Path -Parent (Split-Path -Parent $moduleRoot)
+        $packagePath = Join-Path $repositoryRoot 'Raypro_SQL_Prereq.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $packageAst = [System.Management.Automation.Language.Parser]::ParseFile(
+            $packagePath,
+            [ref]$tokens,
+            [ref]$parseErrors
+        )
+
+        $parseErrors.Count | Should -Be 0
+        $packageAssignment = $packageAst.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+            $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
+            $node.Left.VariablePath.UserPath -eq 'MsiPackages'
+        }, $true)
+        $packageAssignment | Should -Not -BeNullOrEmpty
+
+        $packageTables = $packageAssignment.Right.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.HashtableAst]
+        }, $true)
+        $packages = foreach ($packageTable in $packageTables) {
+            $properties = @{}
+            foreach ($pair in $packageTable.KeyValuePairs) {
+                $valueExpression = $pair.Item2.PipelineElements[0].Expression
+                if ($valueExpression -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
+                    $properties[$pair.Item1.Value] = $valueExpression.Value
+                }
+            }
+
+            [pscustomobject]$properties
+        }
+
+        $packages.Count | Should -Be 8
+        @($packages | Where-Object { [string]::IsNullOrWhiteSpace($_.ProductCode) }).Count | Should -Be 0
+        @($packages | Where-Object { $_.MsiPath -notlike '*.msi' }).Count | Should -Be 0
+        @($packages | Where-Object { $_.Transform }).Count | Should -Be 1
+        $packages[-1].Transform | Should -Be 'MsODBCSql2.mst'
+        @($packages | Where-Object { $_.ForceInstallMode -ne 'Default' }).Count | Should -Be 0
+    }
+}
+
 Describe 'Package component registration' {
     BeforeEach {
         Initialize-RaynetPackage -Action Install
